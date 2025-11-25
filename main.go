@@ -1,50 +1,38 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"net"
 	"net/rpc"
-	"os"
-	"strings"
 )
 
+type ChatServer struct {
+	Messages []string
+}
+
+func (s *ChatServer) SendMessage(msg string, reply *[]string) error {
+
+	s.Messages = append(s.Messages, msg)
+	*reply = s.Messages
+	return nil
+}
+
 func main() {
-	client, err := rpc.Dial("tcp", "host.docker.internal:1234")
+	chatServer := new(ChatServer)
+	err := rpc.Register(chatServer)
 	if err != nil {
-		fmt.Println("Error connecting to server:", err)
+		fmt.Println("Error registering ChatServer:", err)
 		return
 	}
-	defer client.Close()
 
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter your name: ")
-	name, _ := reader.ReadString('\n')
-	name = strings.TrimSpace(name)
-
-	fmt.Println("connect to chatroom, enter your message: ")
-	fmt.Println("Type 'exit' to leave the chatroom.\n")
-
-	for {
-		fmt.Print("> ")
-		msg, _ := reader.ReadString('\n')
-		msg = strings.TrimSpace(msg)
-
-		if msg == "exit" {
-			fmt.Println("Exiting chat.")
-			break
-		}
-
-		msg = fmt.Sprintf("%s: %s", name, msg) // merging the name with the message
-		var chatReply []string                 // to hold the chat history
-		err = client.Call("ChatServer.SendMessage", msg, &chatReply)
-		if err != nil {
-			fmt.Println("Error sending message:", err)
-			break
-		}
-		fmt.Println("\n--- chat history ---")
-		for _, m := range chatReply {
-			fmt.Println(m)
-		}
-		fmt.Println("-----------")
+	listener, err := net.Listen("tcp", ":1234")
+	if err != nil {
+		fmt.Println("Error starting server:", err)
+		return
 	}
+
+	defer listener.Close()
+	fmt.Println("Server listening on port 1234")
+
+	rpc.Accept(listener)
 }
